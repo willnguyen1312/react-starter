@@ -1,98 +1,92 @@
 import { useEffect, useState } from "react";
-
 import "./styles.css";
 
-function JobPosting({ url, by, time, title }) {
-  return (
-    <div className="post" role="listitem">
-      <h2 className="post__title">
-        {url ? (
-          <a
-            className="post__title__link"
-            href={url}
-            target="_blank"
-            rel="noopener"
-          >
-            {title}
-          </a>
-        ) : (
-          title
-        )}
-      </h2>
-      <p className="post__metadata">
-        By {by} &middot; {new Date(time * 1000).toLocaleString()}
-      </p>
-    </div>
+const MIN = 1;
+const MAX = 15;
+const MAX_NUMBER = 200;
+const Y_AXIS_SCALE = 10;
+
+// Extract out the fetching of numbers
+async function fetchNumbers() {
+  const response = await fetch(
+    `https://www.random.org/integers/?num=${MAX_NUMBER}&min=${MIN}&max=${MAX}&col=1&base=10&format=plain&rnd=new`
   );
+
+  const numbersString = await response.text();
+  return numbersString
+    .split("\n")
+    .filter(Boolean)
+    .map((number) => +number);
 }
 
-const PAGE_SIZE = 6;
+function countNumbers(numbers) {
+  const counter = {};
 
-export default function App() {
-  const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
-  const [jobIds, setJobIds] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [page, setPage] = useState(0);
+  for (let i = MIN; i <= MAX; i++) {
+    counter[i] = 0;
+  }
+
+  numbers.forEach((number) => {
+    counter[number]++;
+  });
+
+  return counter;
+}
+
+export default function DataFetching() {
+  const [counts, setCounts] = useState({});
+  async function getNumbers() {
+    const numbers = await fetchNumbers();
+    setCounts(countNumbers(numbers));
+  }
 
   useEffect(() => {
-    console.log("fetching jobs for page", page);
-    fetchJobs(page);
-  }, [page]);
+    getNumbers();
+  }, []);
 
-  async function fetchJobIds(currPage) {
-    let jobs = jobIds;
-    if (!jobs) {
-      const res = await fetch(
-        "https://hacker-news.firebaseio.com/v0/jobstories.json"
-      );
-      jobs = await res.json();
-      setJobIds(jobs);
-    }
-
-    const start = currPage * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    return jobs.slice(start, end);
-  }
-
-  async function fetchJobs(currPage) {
-    const jobIdsForPage = await fetchJobIds(currPage);
-
-    setFetchingJobDetails(true);
-    const jobsForPage = await Promise.all(
-      jobIdsForPage.map((jobId) =>
-        fetch(`https://hacker-news.firebaseio.com/v0/item/${jobId}.json`).then(
-          (res) => res.json()
-        )
-      )
-    );
-    setJobs([...jobs, ...jobsForPage]);
-
-    setFetchingJobDetails(false);
-  }
+  const maxCount = Math.max(0, ...Object.values(counts));
+  const maxYAxis = Math.min(
+    Math.ceil(maxCount / Y_AXIS_SCALE) * Y_AXIS_SCALE,
+    MAX_NUMBER
+  );
 
   return (
-    <div className="app">
-      <h1 className="title">Hacker News Jobs Board</h1>
-      {jobIds == null ? (
-        <p className="loading">Loading...</p>
-      ) : (
-        <div>
-          <div className="jobs" role="list">
-            {jobs.map((job) => (
-              <JobPosting key={job.id} {...job} />
+    <div className="wrapper">
+      <div className="chart">
+        <div className="chartYAxis">
+          <div className="chartYAxisItems">
+            {Array.from({ length: maxYAxis / Y_AXIS_SCALE }).map((_, index) => (
+              <div key={index} className="chartYAxisItem">
+                {(index + 1) * Y_AXIS_SCALE}
+              </div>
             ))}
           </div>
-          {jobs.length > 0 && page * PAGE_SIZE + PAGE_SIZE < jobIds.length && (
-            <button
-              className="load-more-button"
-              disabled={fetchingJobDetails}
-              onClick={() => setPage(page + 1)}
-            >
-              {fetchingJobDetails ? "Loading..." : "Load more jobs"}
-            </button>
-          )}
+          <div className="chartYAxisZero">0</div>
         </div>
-      )}
+
+        <div className="chartMainBody">
+          <div className="chartMainBodyBars">
+            {Array.from({ length: MAX - MIN + 1 }).map((_, index) => (
+              <div
+                key={index}
+                className="chartMainBodyBar"
+                style={{
+                  height: `${(counts[index + MIN] / maxYAxis) * 100}%`,
+                }}
+              />
+            ))}
+          </div>
+          <div className="chartXAxisItems">
+            {Array.from({ length: MAX - MIN + 1 }).map((_, index) => (
+              <div className="chartXAxisItem" key={index}>
+                {index + MIN}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <button onClick={getNumbers}>Refresh</button>
     </div>
   );
 }
