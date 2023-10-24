@@ -52,7 +52,9 @@ const App = () => {
         <label htmlFor="dice">Number of dice</label>
         <input id="dice" name="dice" type="number" min="1" max="99" />
 
-        <button type="submit">Roll</button>
+        <button aria-controls="result" type="submit">
+          Roll
+        </button>
       </form>
 
       <div className="dices">
@@ -68,6 +70,10 @@ const App = () => {
             </div>
           );
         })}
+      </div>
+
+      <div role="region" id="result" aria-live="polite">
+        {dices.length} dices are rolled successfully
       </div>
     </div>
   );
