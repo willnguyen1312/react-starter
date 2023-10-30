@@ -1,98 +1,130 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
-import "./styles.css";
-
-function JobPosting({ url, by, time, title }) {
-  return (
-    <div className="post" role="listitem">
-      <h2 className="post__title">
-        {url ? (
-          <a
-            className="post__title__link"
-            href={url}
-            target="_blank"
-            rel="noopener"
-          >
-            {title}
-          </a>
-        ) : (
-          title
-        )}
-      </h2>
-      <p className="post__metadata">
-        By {by} &middot; {new Date(time * 1000).toLocaleString()}
-      </p>
-    </div>
-  );
-}
-
-const PAGE_SIZE = 6;
+const SIZE = 10;
 
 export default function App() {
-  const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
-  const [jobIds, setJobIds] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [page, setPage] = useState(0);
+  const boxRef = useRef();
+  const anchor = useRef();
+  const selectedGrids = useRef([]);
 
   useEffect(() => {
-    console.log("fetching jobs for page", page);
-    fetchJobs(page);
-  }, [page]);
+    const move = (e) => {
+      const { x, y } = e;
 
-  async function fetchJobIds(currPage) {
-    let jobs = jobIds;
-    if (!jobs) {
-      const res = await fetch(
-        "https://hacker-news.firebaseio.com/v0/jobstories.json"
-      );
-      jobs = await res.json();
-      setJobIds(jobs);
-    }
+      const diffX = x - anchor.current.x;
+      const diffY = y - anchor.current.y;
 
-    const start = currPage * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    return jobs.slice(start, end);
-  }
+      if (diffX <= 0) {
+        boxRef.current.style.left = `${x}px`;
+      } else {
+        // Fix anchor position in case previous x is smaller than anchor x
+        boxRef.current.style.left = `${anchor.current.x}px`;
+      }
 
-  async function fetchJobs(currPage) {
-    const jobIdsForPage = await fetchJobIds(currPage);
+      if (diffY <= 0) {
+        boxRef.current.style.top = `${y}px`;
+      } else {
+        // Fix anchor position in case previous x is smaller than anchor y
+        boxRef.current.style.top = `${anchor.current.y}px`;
+      }
 
-    setFetchingJobDetails(true);
-    const jobsForPage = await Promise.all(
-      jobIdsForPage.map((jobId) =>
-        fetch(`https://hacker-news.firebaseio.com/v0/item/${jobId}.json`).then(
-          (res) => res.json()
-        )
-      )
-    );
-    setJobs([...jobs, ...jobsForPage]);
+      const width = Math.abs(diffX);
+      const height = Math.abs(diffY);
 
-    setFetchingJobDetails(false);
-  }
+      boxRef.current.style.width = `${width}px`;
+      boxRef.current.style.height = `${height}px`;
+
+      const { left, top } = boxRef.current.getBoundingClientRect();
+
+      const grids = document.querySelector(".grids").querySelectorAll("div");
+      const scrollLeft = document.documentElement.scrollLeft;
+      const scrollTop = document.documentElement.scrollTop;
+
+      selectedGrids.current = [];
+      // Evaluate each grid
+      for (let i = 0; i < grids.length; i += 1) {
+        const {
+          x,
+          y,
+          width: cellWidth,
+          height: cellHeight,
+        } = grids[i].getBoundingClientRect();
+
+        const cellX = scrollLeft + x;
+        const cellY = scrollTop + y;
+
+        if (
+          cellX > left &&
+          cellX + cellWidth < left + width &&
+          cellY > top &&
+          cellY + cellHeight < top + height
+        ) {
+          grids[i].style.background = "#b6b6b6";
+          selectedGrids.current.push(grids[i]);
+        } else {
+          grids[i].style.background = "transparent";
+        }
+      }
+    };
+
+    const down = (e) => {
+      // Get click position and make it as an anchor
+      const { x, y } = e;
+      anchor.current = { x, y };
+
+      boxRef.current.style.left = `${x}px`;
+      boxRef.current.style.top = `${y}px`;
+      boxRef.current.style.border = "2px dashed black";
+
+      // Start selecting
+      window.addEventListener("mousemove", move);
+    };
+
+    const up = () => {
+      // Stop selecting
+      window.removeEventListener("mousemove", move);
+
+      // Reset boundingRect style
+      boxRef.current.style.width = `${0}px`;
+      boxRef.current.style.height = `${0}px`;
+      boxRef.current.style.border = "none";
+
+      // Change selected grids color
+      selectedGrids.current.forEach((cell) => {
+        cell.style.background = "#96AAF9";
+      });
+
+      // Empty selected grids
+      selectedGrids.current = [];
+    };
+
+    window.addEventListener("mousedown", down);
+    window.addEventListener("mouseup", up);
+
+    return () => {
+      window.removeEventListener("mousedown", down);
+      window.addEventListener("mouseup", up);
+      window.removeEventListener("mousemove", move);
+    };
+  }, []);
 
   return (
-    <div className="app">
-      <h1 className="title">Hacker News Jobs Board</h1>
-      {jobIds == null ? (
-        <p className="loading">Loading...</p>
-      ) : (
-        <div>
-          <div className="jobs" role="list">
-            {jobs.map((job) => (
-              <JobPosting key={job.id} {...job} />
-            ))}
-          </div>
-          {jobs.length > 0 && page * PAGE_SIZE + PAGE_SIZE < jobIds.length && (
-            <button
-              className="load-more-button"
-              disabled={fetchingJobDetails}
-              onClick={() => setPage(page + 1)}
-            >
-              {fetchingJobDetails ? "Loading..." : "Load more jobs"}
-            </button>
-          )}
+    <>
+      <div ref={boxRef} className="select-box" />
+      <div className="wrapper">
+        <div
+          className="grids"
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${SIZE}, 1fr)`,
+            gridTemplateRows: `repeat(${SIZE}, 1fr)`,
+          }}
+        >
+          {Array.from({ length: SIZE * SIZE }, (_, index) => {
+            return <div className="grids__item" key={`grid${index}`} />;
+          })}
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
