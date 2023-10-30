@@ -1,46 +1,50 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const SIZE = 10;
 
 export default function App() {
   const boxRef = useRef();
-  const anchor = useRef();
-  const selectedGrids = useRef([]);
+  const cornerRef = useRef();
+  const [selectedGrids, setSelectedGrids] = useState(new Set());
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
-    const move = (e) => {
+    const onMouseMove = (e) => {
+      if (!isDraggingRef.current) {
+        return;
+      }
+
       const { x, y } = e;
 
-      const diffX = x - anchor.current.x;
-      const diffY = y - anchor.current.y;
+      const diffX = x - cornerRef.current.x;
+      const diffY = y - cornerRef.current.y;
+      const boxElement = boxRef.current;
 
+      // Update select-box position
       if (diffX <= 0) {
-        boxRef.current.style.left = `${x}px`;
+        boxElement.style.left = `${x}px`;
       } else {
-        // Fix anchor position in case previous x is smaller than anchor x
-        boxRef.current.style.left = `${anchor.current.x}px`;
+        boxElement.style.left = `${cornerRef.current.x}px`;
       }
 
       if (diffY <= 0) {
-        boxRef.current.style.top = `${y}px`;
+        boxElement.style.top = `${y}px`;
       } else {
-        // Fix anchor position in case previous x is smaller than anchor y
-        boxRef.current.style.top = `${anchor.current.y}px`;
+        boxElement.style.top = `${cornerRef.current.y}px`;
       }
 
       const width = Math.abs(diffX);
       const height = Math.abs(diffY);
 
-      boxRef.current.style.width = `${width}px`;
-      boxRef.current.style.height = `${height}px`;
+      // Update select-box size
+      boxElement.style.width = `${width}px`;
+      boxElement.style.height = `${height}px`;
 
-      const { left, top } = boxRef.current.getBoundingClientRect();
+      const { left, top } = boxElement.getBoundingClientRect();
+      const grids = document.querySelectorAll(".grids__item");
 
-      const grids = document.querySelector(".grids").querySelectorAll("div");
-      const scrollLeft = document.documentElement.scrollLeft;
-      const scrollTop = document.documentElement.scrollTop;
+      const newSelectedGrids = new Set();
 
-      selectedGrids.current = [];
       // Evaluate each grid
       for (let i = 0; i < grids.length; i += 1) {
         const {
@@ -50,61 +54,49 @@ export default function App() {
           height: cellHeight,
         } = grids[i].getBoundingClientRect();
 
-        const cellX = scrollLeft + x;
-        const cellY = scrollTop + y;
-
         if (
-          cellX > left &&
-          cellX + cellWidth < left + width &&
-          cellY > top &&
-          cellY + cellHeight < top + height
+          // Check if grid is partially inside select-box
+          left <= x + cellWidth &&
+          x <= left + width &&
+          top <= y + cellHeight &&
+          y <= top + height
         ) {
-          grids[i].style.background = "#b6b6b6";
-          selectedGrids.current.push(grids[i]);
-        } else {
-          grids[i].style.background = "transparent";
+          newSelectedGrids.add(i);
         }
       }
+
+      setSelectedGrids(newSelectedGrids);
     };
 
-    const down = (e) => {
-      // Get click position and make it as an anchor
+    const onMouseDown = (e) => {
+      isDraggingRef.current = true;
+      // Reset selected grids
+      setSelectedGrids(new Set());
+      // Get click position and store it in ref
       const { x, y } = e;
-      anchor.current = { x, y };
+      cornerRef.current = { x, y };
 
       boxRef.current.style.left = `${x}px`;
       boxRef.current.style.top = `${y}px`;
       boxRef.current.style.border = "2px dashed black";
-
-      // Start selecting
-      window.addEventListener("mousemove", move);
     };
 
-    const up = () => {
-      // Stop selecting
-      window.removeEventListener("mousemove", move);
-
-      // Reset boundingRect style
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      // Reset select-box style
       boxRef.current.style.width = `${0}px`;
       boxRef.current.style.height = `${0}px`;
       boxRef.current.style.border = "none";
-
-      // Change selected grids color
-      selectedGrids.current.forEach((cell) => {
-        cell.style.background = "#96AAF9";
-      });
-
-      // Empty selected grids
-      selectedGrids.current = [];
     };
 
-    window.addEventListener("mousedown", down);
-    window.addEventListener("mouseup", up);
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("mousemove", onMouseMove);
 
     return () => {
-      window.removeEventListener("mousedown", down);
-      window.addEventListener("mouseup", up);
-      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("mousemove", onMouseMove);
     };
   }, []);
 
@@ -121,7 +113,14 @@ export default function App() {
           }}
         >
           {Array.from({ length: SIZE * SIZE }, (_, index) => {
-            return <div className="grids__item" key={`grid${index}`} />;
+            return (
+              <div
+                className={`grids__item ${
+                  selectedGrids.has(index) ? "grids__item--highlight" : ""
+                }`}
+                key={index}
+              />
+            );
           })}
         </div>
       </div>
