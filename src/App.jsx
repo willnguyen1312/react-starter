@@ -1,98 +1,39 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import ImageCarousel from "./ImageCarousel";
 
-import "./styles.css";
-
-function JobPosting({ url, by, time, title }) {
-  return (
-    <div className="post" role="listitem">
-      <h2 className="post__title">
-        {url ? (
-          <a
-            className="post__title__link"
-            href={url}
-            target="_blank"
-            rel="noopener"
-          >
-            {title}
-          </a>
-        ) : (
-          title
-        )}
-      </h2>
-      <p className="post__metadata">
-        By {by} &middot; {new Date(time * 1000).toLocaleString()}
-      </p>
-    </div>
-  );
-}
-
-const PAGE_SIZE = 6;
+const images = [
+  "https://images.unsplash.com/photo-1682687219570-4c596363fd96?q=25",
+  "https://images.unsplash.com/photo-1511656890657-c8b3f9464a9e?q=25",
+  "https://images.unsplash.com/photo-1551632811-561732d1e306?q=25",
+  "https://images.unsplash.com/photo-1616411023041-f0223e26110f?q=25",
+  "https://images.unsplash.com/photo-1541585485705-933a0f48b48d?q=25",
+  "https://images.unsplash.com/photo-1487418493465-9b479a9bda5f?q=25",
+];
 
 export default function App() {
-  const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
-  const [jobIds, setJobIds] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [page, setPage] = useState(0);
-
-  useEffect(() => {
-    console.log("fetching jobs for page", page);
-    fetchJobs(page);
-  }, [page]);
-
-  async function fetchJobIds(currPage) {
-    let jobs = jobIds;
-    if (!jobs) {
-      const res = await fetch(
-        "https://hacker-news.firebaseio.com/v0/jobstories.json"
-      );
-      jobs = await res.json();
-      setJobIds(jobs);
-    }
-
-    const start = currPage * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    return jobs.slice(start, end);
-  }
-
-  async function fetchJobs(currPage) {
-    const jobIdsForPage = await fetchJobIds(currPage);
-
-    setFetchingJobDetails(true);
-    const jobsForPage = await Promise.all(
-      jobIdsForPage.map((jobId) =>
-        fetch(`https://hacker-news.firebaseio.com/v0/item/${jobId}.json`).then(
-          (res) => res.json()
-        )
-      )
-    );
-    setJobs([...jobs, ...jobsForPage]);
-
-    setFetchingJobDetails(false);
-  }
+  const [activeIndex, setActiveIndex] = useState(0);
 
   return (
-    <div className="app">
-      <h1 className="title">Hacker News Jobs Board</h1>
-      {jobIds == null ? (
-        <p className="loading">Loading...</p>
-      ) : (
-        <div>
-          <div className="jobs" role="list">
-            {jobs.map((job) => (
-              <JobPosting key={job.id} {...job} />
-            ))}
-          </div>
-          {jobs.length > 0 && page * PAGE_SIZE + PAGE_SIZE < jobIds.length && (
-            <button
-              className="load-more-button"
-              disabled={fetchingJobDetails}
-              onClick={() => setPage(page + 1)}
-            >
-              {fetchingJobDetails ? "Loading..." : "Load more jobs"}
-            </button>
-          )}
-        </div>
-      )}
+    <div className="wrapper">
+      <ImageCarousel images={images} activeIndex={activeIndex} />
+      <div>
+        <button
+          onClick={() => {
+            const nextIndex = (activeIndex - 1 + images.length) % images.length;
+            setActiveIndex(nextIndex);
+          }}
+        >
+          &larr;
+        </button>
+        <button
+          onClick={() => {
+            const nextIndex = (activeIndex + 1) % images.length;
+            setActiveIndex(nextIndex);
+          }}
+        >
+          &rarr;
+        </button>
+      </div>
     </div>
   );
 }
